@@ -107,7 +107,9 @@ def get_last_update():
     except: return "Error"
 
 def get_labels():
-    conn = sqlite3.connect(DB_PATH); conn.row_factory = sqlite3.Row
+
+# 変更後
+    conn = sqlite3.connect(DB_PATH, timeout=30); conn.execute("PRAGMA journal_mode=WAL;"); conn.execute("PRAGMA busy_timeout=5000;"); conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT start_ts, end_ts, label, cat_w, waste_w, camera_label FROM labels ORDER BY start_ts DESC LIMIT 50")
     rows = cur.fetchall(); conn.close()
@@ -132,13 +134,14 @@ def index():
     if request.method == "POST":
         start_ts = float(request.form["start_ts"])
         selected_label = request.form["label"]
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
         if selected_label == "DELETE":
             conn.execute("DELETE FROM labels WHERE start_ts=?", (start_ts,))
         elif selected_label != "keep":
             conn.execute("UPDATE labels SET label=?, manually_edited=1 WHERE start_ts=?", (selected_label, start_ts))
         conn.commit(); conn.close()
-
         # ★追加：summary.txtを再生成
         try:
             import sys
@@ -147,7 +150,6 @@ def index():
             write_summary_file()
         except Exception as e:
             print(f"write_summary_file error: {e}")
-
         return redirect("/")
     return render_template_string(HTML, rows=get_labels(), updated_at=get_last_update())
 
