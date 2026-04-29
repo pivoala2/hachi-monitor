@@ -18,6 +18,10 @@ CAT_WEIGHT_MIN = 3500
 CAT_WEIGHT_MAX = 5000
 EXIT_THRESHOLD = 2000  # 退場検知閾値（砂箱1300g + 余裕700g）
 
+# ファイル先頭のグローバル変数に追加
+_last_gemini_time = 0
+GEMINI_MIN_INTERVAL = 120  # 秒（2分以内の連続呼び出しはスキップ）
+
 # 撮影中フラグ（多重起動防止）
 _shooting = False
 _shooting_lock = threading.Lock()
@@ -71,6 +75,15 @@ def get_baseline():
 
 
 def shoot_and_analyze(timestamp: int):
+    # shoot_and_analyze の最初のtryブロック内に追加
+    global _last_gemini_time
+
+    now = time.time()
+    if now - _last_gemini_time < GEMINI_MIN_INTERVAL:
+        print(f"[Gemini] スキップ（前回から{now - _last_gemini_time:.0f}秒）")
+        return
+
+    _last_gemini_time = now
     """カメラ撮影してGeminiで解析、結果をJSONに保存"""
     global _shooting, _stop_event
 
@@ -97,7 +110,8 @@ def shoot_and_analyze(timestamp: int):
         threading.Thread(target=stop_after_timeout, daemon=True).start()
 
         # capture_sessionはstop_eventが立つまで撮影継続
-        images = capture_session(stop_event)
+        # 変更後
+        images, cooldown_start = capture_session(stop_event)
 
         if not images:
             print("[camera] 画像取得なし")
@@ -109,7 +123,11 @@ def shoot_and_analyze(timestamp: int):
         shot_dir = "/app/shared_summary/camera_shots"
         os.makedirs(shot_dir, exist_ok=True)
 
-        for img_bytes in images[-3:]:
+        session_images = images[:cooldown_start]  # クールダウン前のみ
+        step = max(1, len(session_images) // 3)
+        target_images = session_images[::step][:3]
+
+        for img_bytes in target_images:
             ts_str = datetime.now().strftime("%Y%m%d%H%M%S")
             shot_path = os.path.join(shot_dir, f"front_00_{ts_str}.jpg")
             with open(shot_path, "wb") as f:

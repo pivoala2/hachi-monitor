@@ -26,7 +26,7 @@ def crop_toilet_area(image_bytes: bytes) -> bytes:
     img = Image.open(io.BytesIO(image_bytes))
     cropped = img.crop((CROP_LEFT, CROP_TOP, CROP_RIGHT, CROP_BOTTOM))
     buf = io.BytesIO()
-    cropped.convert("RGB").save(buf, format="JPEG", quality=85)  # ★ convert("RGB")を追加
+    cropped.save(buf, format="JPEG")
     return buf.getvalue()
 
 
