@@ -17,3 +17,5 @@ shared_summary/
 .Trash-0/
 Untitled*.ipynb
 *.back
+*.un~
+*~
