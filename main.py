@@ -109,35 +109,32 @@ def shoot_and_analyze(timestamp: int):
 
         threading.Thread(target=stop_after_timeout, daemon=True).start()
 
-        # capture_sessionはstop_eventが立つまで撮影継続
-        # 変更後
         images, cooldown_start = capture_session(stop_event)
-
         if not images:
             print("[camera] 画像取得なし")
             return
-
         print(f"[camera] {len(images)}枚取得 → Gemini解析開始")
 
-        # ===== 画像保存（最後の3枚）=====
+        # ===== 画像保存（全枚数）=====
         shot_dir = "/app/shared_summary/camera_shots"
         os.makedirs(shot_dir, exist_ok=True)
 
-        session_images = images[:cooldown_start]  # クールダウン前のみ
-        step = max(1, len(session_images) // 3)
-        target_images = session_images[::step][:3]
-
-        for img_bytes in target_images:
-            ts_str = datetime.now().strftime("%Y%m%d%H%M%S")
+        for img_bytes in images:  # ← 全枚数
+            ts_str = datetime.now().strftime("%Y%m%d%H%M%S%f")[:17]
             shot_path = os.path.join(shot_dir, f"front_00_{ts_str}.jpg")
             with open(shot_path, "wb") as f:
                 f.write(img_bytes)
             print(f"[camera] 保存: {shot_path}")
-            time.sleep(1)
+            time.sleep(0.1)
 
         all_files = sorted([f for f in os.listdir(shot_dir) if f.endswith(".jpg")])
         while len(all_files) > 150:
             os.remove(os.path.join(shot_dir, all_files.pop(0)))
+
+        # ===== Gemini用は入室中の3枚を選ぶ =====
+        session_images = images[:cooldown_start]
+        step = max(1, len(session_images) // 3)
+        target_images = session_images[::step][:3]
 
         from google.genai import types
         client = get_gemini_client()
